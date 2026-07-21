@@ -49,6 +49,8 @@ const state = {
   wsGeneration: 0,
   lastRoomSyncAt: 0,
   pendingInvite: null,
+  friendsPollTimer: null,
+  friendsLoading: false,
 };
 
 const els = {};
@@ -149,6 +151,7 @@ async function showApp() {
   await loadConfig();
   connectWebSocket();
   await Promise.allSettled([loadMe(), loadFriends()]);
+  startFriendsPolling();
   renderRecent();
   renderQueue();
   if (state.googleToken) await restoreGoogle();
@@ -157,6 +160,7 @@ async function showApp() {
 
 function showAuthAfterExpiredSession(message = 'Сессия Sync Music истекла после перезапуска сервера. Войди заново.') {
   state.wsRetry && clearTimeout(state.wsRetry);
+  stopFriendsPolling();
   state.ws?.close();
   storage.remove('sync.session');
   sessionStorage.removeItem('sync.googleToken');
@@ -169,6 +173,7 @@ function showAuthAfterExpiredSession(message = 'Сессия Sync Music исте
 }
 
 function logout() {
+  stopFriendsPolling();
   state.ws?.close();
   storage.remove('sync.session');
   state.token = '';
@@ -225,6 +230,19 @@ function setConnection(online, text) {
   els.connectionText.textContent = text;
 }
 
+function clearRoomState(message = '') {
+  state.roomCode = '';
+  state.roomHost = '';
+  state.members = [];
+  state.queue = [];
+  state.currentQueueId = null;
+  storage.remove('sync.roomCode');
+  renderRoom();
+  renderQueue();
+  setConnection(Boolean(state.ws?.readyState === WebSocket.OPEN), 'Онлайн');
+  if (message) toast(message, 'error');
+}
+
 function handleSocketMessage(message) {
   switch (message.type) {
     case 'friend_request': toast(`${message.from} отправил заявку в друзья`); loadFriends(); break;
@@ -234,7 +252,7 @@ function handleSocketMessage(message) {
       showRoomInvite(message.from, message.room_code);
       break;
     case 'room_joined':
-      if (!message.ok) { toast('Комната не найдена', 'error'); return; }
+      if (!message.ok) { clearRoomState('Комната больше не существует'); return; }
       state.roomCode = message.room_code;
       state.roomHost = message.host;
       state.members = message.members || [];
@@ -253,8 +271,13 @@ function handleSocketMessage(message) {
       renderRoom(); renderQueue();
       break;
     case 'room_left':
-      state.roomCode=''; state.roomHost=''; state.members=[]; state.queue=[]; state.currentQueueId=null; storage.remove('sync.roomCode');
-      renderRoom(); renderQueue(); setConnection(true,'Онлайн'); break;
+      clearRoomState();
+      break;
+    case 'room_closed':
+    case 'room_deleted':
+    case 'host_left':
+      clearRoomState(message.reason || 'Хост покинул комнату. Комната закрыта');
+      break;
     case 'queue_updated':
       state.queue = message.queue || [];
       state.currentQueueId = message.currentQueueId || null;
@@ -299,15 +322,35 @@ function openSidebar() { els.sidebar.classList.add('open'); els.sidebarBackdrop.
 function closeSidebar() { els.sidebar.classList.remove('open'); els.sidebarBackdrop.classList.remove('open'); }
 
 async function loadFriends() {
-  const data = await api(`/api/friends/list?token=${encodeURIComponent(state.token)}`);
-  state.friends = data.friends || [];
-  state.pending = data.pending_requests || [];
-  els.friendBadge.classList.toggle('hidden', !state.pending.length);
-  els.friendBadge.textContent = state.pending.length;
-  els.requestCount.textContent = state.pending.length;
-  els.friendsCount.textContent = state.friends.length;
-  renderPeople();
-  renderRoom();
+  if (!state.token || state.friendsLoading) return;
+  state.friendsLoading = true;
+  try {
+    const data = await api(`/api/friends/list?token=${encodeURIComponent(state.token)}`);
+    state.friends = data.friends || [];
+    state.pending = data.pending_requests || [];
+    els.friendBadge.classList.toggle('hidden', !state.pending.length);
+    els.friendBadge.textContent = state.pending.length;
+    els.requestCount.textContent = state.pending.length;
+    els.friendsCount.textContent = state.friends.length;
+    renderPeople();
+    renderRoom();
+  } catch (error) {
+    console.error('Не удалось обновить друзей:', error);
+  } finally {
+    state.friendsLoading = false;
+  }
+}
+
+function startFriendsPolling() {
+  stopFriendsPolling();
+  state.friendsPollTimer = setInterval(() => {
+    if (!document.hidden && state.token) loadFriends();
+  }, 2500);
+}
+
+function stopFriendsPolling() {
+  if (state.friendsPollTimer) clearInterval(state.friendsPollTimer);
+  state.friendsPollTimer = null;
 }
 
 function renderPeople() {

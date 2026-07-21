@@ -79,18 +79,36 @@ class ConnectionManager:
         await self.broadcast_presence(code)
         return True, self.room_snapshot(code)
 
-    async def leave_room(self, username: str) -> None:
+    async def leave_room(self, username: str) -> bool:
         room_code = self.user_room.pop(username, None)
         if not room_code or room_code not in self.rooms:
-            return
+            return False
+
         room = self.rooms[room_code]
+
+        # When the host explicitly leaves, close the room for everyone.
+        if room.host == username:
+            remaining_members = [member for member in room.members if member != username]
+            self.rooms.pop(room_code, None)
+            for member in remaining_members:
+                self.user_room.pop(member, None)
+                await self.send_to_user(
+                    member,
+                    {
+                        "type": "room_closed",
+                        "room_code": room_code,
+                        "reason": "Хост покинул комнату. Комната закрыта",
+                    },
+                )
+            return True
+
         room.members.discard(username)
         if not room.members:
             self.rooms.pop(room_code, None)
-            return
-        if room.host == username:
-            room.host = sorted(room.members)[0]
+            return False
+
         await self.broadcast_presence(room_code)
+        return False
 
     def room_snapshot(self, room_code: str) -> dict[str, Any]:
         room = self.rooms.get(room_code)

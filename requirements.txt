@@ -5,3 +5,4 @@ bcrypt>=4.2,<5
 ytmusicapi>=1.11,<2
 python-dotenv>=1.0,<2
 httpx>=0.28,<1
+python-multipart

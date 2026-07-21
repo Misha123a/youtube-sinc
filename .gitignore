@@ -10,38 +10,24 @@ venv/
 .venv/
 ENV/
 
-# Virtual environments
-pip-log.txt
-pip-delete-this-directory.txt
-
-# Environment variables
-.env
-.env.local
-
 # Database
 *.db
 *.sqlite3
 
+# Environment
+.env
+
 # Logs
 *.log
-logs/
 
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Build / cache
-__pycache__/
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-
-# Specific to your project
+# Project specific
 mnt/user-data/outputs/
 EOF

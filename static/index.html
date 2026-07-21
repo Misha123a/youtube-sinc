@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Sync Music</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ===== Экран входа ===== -->
+<div id="authScreen" class="screen">
+  <div class="auth-box">
+    <h1>Sync Music</h1>
+    <div class="tabs">
+      <button id="tabLogin" class="tab active">Войти</button>
+      <button id="tabRegister" class="tab">Регистрация</button>
+    </div>
+    <input id="authUsername" placeholder="Имя пользователя">
+    <input id="authPassword" type="password" placeholder="Пароль">
+    <label class="checkbox">
+      <input type="checkbox" id="rememberMe">
+      Запомнить меня
+    </label>
+    <button id="authSubmit" class="primary">Войти</button>
+    <div id="authError" class="error"></div>
+  </div>
+</div>
+
+<!-- ===== Основной экран ===== -->
+<div id="mainScreen" class="screen" style="display:none">
+
+  <div class="sidebar">
+    <div class="me">Ты: <b id="meUsername"></b> <button id="logoutBtn" class="secondary small">Выйти</button></div>
+
+    <h3>Друзья</h3>
+    <div id="friendsList" class="list"></div>
+
+    <h3>Заявки в друзья</h3>
+    <div id="pendingList" class="list"></div>
+
+    <div class="add-friend">
+      <input id="addFriendInput" placeholder="Имя пользователя">
+      <button id="addFriendBtn">Добавить</button>
+    </div>
+    <div id="friendMsg" class="msg"></div>
+  </div>
+
+  <div class="content">
+
+    <div class="room-bar">
+      <button id="createRoomBtn">Создать комнату</button>
+      <span id="roomInfo"></span>
+      <div id="inviteBox" style="display:none">
+        Пригласить: <span id="inviteFriends"></span>
+      </div>
+    </div>
+
+    <div class="search-bar">
+      <input id="searchInput" placeholder="Название трека...">
+      <button id="searchBtn">Искать</button>
+    </div>
+    <div id="searchResults" class="list"></div>
+
+    <div id="playerDock">
+      <div class="player-visual">
+        <div id="player"></div>
+      </div>
+      <div class="player-info">
+        <div id="nowPlaying" class="player-title">Выберите трек</div>
+        <div id="playerStatus" class="player-subtitle">Плеер готов</div>
+      </div>
+      <div class="player-controls">
+        <button id="rewindBtn" class="control">-5s</button>
+        <button id="playBtn" class="control primary-control">▶</button>
+        <button id="pauseBtn" class="control">⏸</button>
+        <button id="forwardBtn" class="control">+5s</button>
+      </div>
+      <div class="player-progress">
+        <div class="player-progress-track">
+          <div id="playerProgressFill"></div>
+        </div>
+        <div id="playerTime" class="player-time">0:00 / 0:00</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div id="inviteModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-title">Приглашение в комнату</div>
+    <div class="modal-text"><span id="inviteFrom"></span> приглашает тебя в комнату <strong id="inviteRoom"></strong></div>
+    <div class="modal-actions">
+      <button id="joinInviteBtn" class="primary">Присоединиться</button>
+      <button id="declineInviteBtn" class="secondary">Отказаться</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

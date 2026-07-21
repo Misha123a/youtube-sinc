@@ -1,9 +1,10 @@
-"""SQLite storage for Sync Music accounts and friendships."""
+"""SQLite storage for Sync Music accounts, friendships and public profile data."""
 
 from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 DB_PATH = Path(__file__).parent / "app.db"
 
@@ -12,6 +13,15 @@ def get_db() -> sqlite3.Connection:
     connection = sqlite3.connect(DB_PATH)
     connection.row_factory = sqlite3.Row
     return connection
+
+
+def _ensure_column(connection: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def init_db() -> None:
@@ -35,6 +45,9 @@ def init_db() -> None:
             );
             """
         )
+        _ensure_column(connection, "users", "google_name", "TEXT")
+        _ensure_column(connection, "users", "google_avatar", "TEXT")
+        _ensure_column(connection, "users", "google_email", "TEXT")
 
 
 def user_exists(username: str) -> bool:
@@ -58,6 +71,88 @@ def get_user(username: str) -> sqlite3.Row | None:
             "SELECT * FROM users WHERE username = ?", (username,)
         ).fetchone()
 
+
+def update_google_profile(
+    username: str,
+    *,
+    display_name: str = "",
+    avatar_url: str = "",
+    email: str = "",
+) -> None:
+    with get_db() as connection:
+        connection.execute(
+            """
+            UPDATE users
+            SET google_name = ?, google_avatar = ?, google_email = ?
+            WHERE username = ?
+            """,
+            (display_name[:120], avatar_url[:1000], email[:254], username),
+        )
+
+
+def clear_google_profile(username: str) -> None:
+    update_google_profile(username, display_name="", avatar_url="", email="")
+
+
+def get_public_profile(username: str) -> dict[str, Any]:
+    with get_db() as connection:
+        row = connection.execute(
+            """
+            SELECT username, google_name, google_avatar
+            FROM users WHERE username = ?
+            """,
+            (username,),
+        ).fetchone()
+    if not row:
+        return {"username": username, "displayName": username, "avatar": ""}
+    return {
+        "username": str(row["username"]),
+        "displayName": str(row["google_name"] or row["username"]),
+        "avatar": str(row["google_avatar"] or ""),
+    }
+
+
+def get_public_profiles(usernames: list[str]) -> dict[str, dict[str, Any]]:
+    clean = sorted(
+        {str(name).strip() for name in usernames if str(name).strip()},
+        key=str.lower,
+    )
+
+    if not clean:
+        return {}
+
+    placeholders = ",".join("?" for _ in clean)
+
+    with get_db() as connection:
+        rows = connection.execute(
+            f"""
+            SELECT username, google_name, google_avatar
+            FROM users
+            WHERE username COLLATE NOCASE IN ({placeholders})
+            """,
+            clean,
+        ).fetchall()
+
+    profiles_by_username = {
+        str(row["username"]).lower(): {
+            "username": str(row["username"]),
+            "displayName": str(row["google_name"] or row["username"]),
+            "avatar": str(row["google_avatar"] or ""),
+        }
+        for row in rows
+    }
+
+    return {
+        name: profiles_by_username.get(
+            name.lower(),
+            {
+                "username": name,
+                "displayName": name,
+                "avatar": "",
+            },
+        )
+        for name in clean
+    }
 
 def add_friend_request(from_user: str, to_user: str) -> str:
     with get_db() as connection:
@@ -122,7 +217,7 @@ def get_pending_requests(to_user: str) -> list[str]:
             """,
             (to_user,),
         ).fetchall()
-    return [row["from_user"] for row in rows]
+    return [str(row["from_user"]) for row in rows]
 
 
 def get_friends(username: str) -> list[str]:
@@ -137,7 +232,9 @@ def get_friends(username: str) -> list[str]:
         ).fetchall()
 
     friends = {
-        row["to_user"] if row["from_user"].lower() == username.lower() else row["from_user"]
+        str(row["to_user"])
+        if str(row["from_user"]).lower() == username.lower()
+        else str(row["from_user"])
         for row in rows
     }
     return sorted(friends, key=str.lower)

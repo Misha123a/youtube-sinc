@@ -1,5 +1,6 @@
-fastapi
-uvicorn[standard]
-websockets
-bcrypt
-ytmusicapi
+fastapi>=0.115,<1
+uvicorn[standard]>=0.34,<1
+websockets>=14,<16
+bcrypt>=4.2,<5
+ytmusicapi>=1.11,<2
+python-dotenv>=1.0,<2

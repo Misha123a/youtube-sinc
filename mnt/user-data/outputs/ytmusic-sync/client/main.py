@@ -1,71 +1,88 @@
-"""
-Десктопный клиент — просто окно со встроенным браузером (QtWebEngine),
-которое открывает веб-интерфейс, раздаваемый сервером (server/main.py).
+"""Optional PySide6 wrapper for the Sync Music web application."""
 
-Вся логика (авторизация, друзья, поиск, плеер, синхронизация) — на
-сервере и во фронтенде (server/static/*), Python здесь почти ничего
-не делает, кроме открытия окна и запоминания адреса сервера.
+from __future__ import annotations
 
-Установка:
-    pip install PySide6
-
-Запуск:
-    python main.py
-
-При первом запуске спросит адрес сервера (например, http://localhost:8000
-для локального теста, или адрес твоего задеплоенного сервера для
-использования с друзьями из других городов). Адрес запоминается
-в config.json рядом со скриптом.
-"""
-
-import sys
 import json
+import sys
 from pathlib import Path
-from PySide6.QtWidgets import QApplication, QMainWindow, QInputDialog
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtCore import QUrl
 
-CONFIG_PATH = Path(__file__).parent / "config.json"
+from PySide6.QtCore import QUrl
+from PySide6.QtWebEngineCore import QWebEngineProfile
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWidgets import QApplication, QInputDialog, QMainWindow
+
+APP_DIR = Path(__file__).parent
+CONFIG_PATH = APP_DIR / "config.json"
+PROFILE_PATH = APP_DIR / ".profile"
 
 
 def get_server_address() -> str:
     if CONFIG_PATH.exists():
         try:
-            data = json.loads(CONFIG_PATH.read_text())
-            return data["server_address"]
-        except Exception:
+            value = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))["server_address"]
+            if value:
+                return str(value).rstrip("/")
+        except (OSError, KeyError, ValueError, TypeError):
             pass
 
-    address, ok = QInputDialog.getText(
+    address, accepted = QInputDialog.getText(
         None,
-        "Адрес сервера",
-        "Введи адрес сервера (например, http://localhost:8000):",
+        "Sync Music",
+        "Адрес сервера:",
         text="http://localhost:8000",
     )
-    if not ok or not address.strip():
+    address = address.strip().rstrip("/") if accepted else "http://localhost:8000"
+    if not address:
         address = "http://localhost:8000"
+    CONFIG_PATH.write_text(
+        json.dumps({"server_address": address}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return address
 
-    CONFIG_PATH.write_text(json.dumps({"server_address": address.strip()}))
-    return address.strip()
+
+class PopupView(QWebEngineView):
+    """Keep OAuth/new-window popups alive when Qt allows them."""
+
+    def __init__(self, parent: QMainWindow | None = None) -> None:
+        super().__init__(parent)
+        self.popups: list[QMainWindow] = []
+
+    def createWindow(self, _window_type):  # noqa: N802 - Qt method name
+        window = QMainWindow(self)
+        popup = PopupView(window)
+        window.setCentralWidget(popup)
+        window.resize(720, 760)
+        window.setWindowTitle("Sync Music — вход")
+        window.show()
+        self.popups.append(window)
+        window.destroyed.connect(lambda: self.popups.remove(window) if window in self.popups else None)
+        return popup
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, server_address: str):
+    def __init__(self, server_address: str) -> None:
         super().__init__()
         self.setWindowTitle("Sync Music")
-        self.resize(1100, 750)
+        self.resize(1440, 900)
+        self.setMinimumSize(980, 680)
 
-        self.view = QWebEngineView()
+        profile = QWebEngineProfile.defaultProfile()
+        profile.setPersistentStoragePath(str(PROFILE_PATH / "storage"))
+        profile.setCachePath(str(PROFILE_PATH / "cache"))
+        profile.setPersistentCookiesPolicy(QWebEngineProfile.PersistentCookiesPolicy.ForcePersistentCookies)
+
+        self.view = PopupView(self)
         self.view.load(QUrl(server_address))
         self.setCentralWidget(self.view)
 
 
-def main():
-    app = QApplication(sys.argv)
-    server_address = get_server_address()
-    window = MainWindow(server_address)
+def main() -> None:
+    application = QApplication(sys.argv)
+    application.setApplicationName("Sync Music")
+    window = MainWindow(get_server_address())
     window.show()
-    sys.exit(app.exec())
+    raise SystemExit(application.exec())
 
 
 if __name__ == "__main__":

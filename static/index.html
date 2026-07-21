@@ -1,104 +1,238 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
-<meta charset="UTF-8">
-<title>Sync Music</title>
-<link rel="stylesheet" href="/static/style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#090b10">
+  <meta name="description" content="Sync Music — слушай YouTube Music синхронно с друзьями">
+  <title>Sync Music</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="/static/app.js" defer></script>
 </head>
 <body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-logo" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-radio" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.48"/><path d="M7.76 16.24a6 6 0 0 1 0-8.48"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 19.07a10 10 0 0 1 0-14.14"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="m6 5 10 7-10 7zM18 5v14"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="m18 5-10 7 10 7zM6 5v14"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></symbol>
+    <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+    <symbol id="i-log-out" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5M15 12H3"/><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 3h7v7M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3-1.4 3.6L7 8l3.6 1.4L12 13l1.4-3.6L17 8l-3.6-1.4zM5 14l-.9 2.1L2 17l2.1.9L5 20l.9-2.1L8 17l-2.1-.9zM19 13l-.9 2.1L16 16l2.1.9L19 19l.9-2.1L22 16l-2.1-.9z"/></symbol>
+    <symbol id="i-youtube" viewBox="0 0 24 24"><path d="M21.6 7.2a3 3 0 0 0-2.1-2.1C17.6 4.5 12 4.5 12 4.5s-5.6 0-7.5.6a3 3 0 0 0-2.1 2.1A31 31 0 0 0 2 12a31 31 0 0 0 .4 4.8 3 3 0 0 0 2.1 2.1c1.9.6 7.5.6 7.5.6s5.6 0 7.5-.6a3 3 0 0 0 2.1-2.1A31 31 0 0 0 22 12a31 31 0 0 0-.4-4.8z"/><path class="fill" d="m10 15.5 5-3.5-5-3.5z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 10v7M14 10v7"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  </svg>
 
-<!-- ===== Экран входа ===== -->
-<div id="authScreen" class="screen">
-  <div class="auth-box">
-    <h1>Sync Music</h1>
-    <div class="tabs">
-      <button id="tabLogin" class="tab active">Войти</button>
-      <button id="tabRegister" class="tab">Регистрация</button>
-    </div>
-    <input id="authUsername" placeholder="Имя пользователя">
-    <input id="authPassword" type="password" placeholder="Пароль">
-    <label class="checkbox">
-      <input type="checkbox" id="rememberMe">
-      Запомнить меня
-    </label>
-    <button id="authSubmit" class="primary">Войти</button>
-    <div id="authError" class="error"></div>
-  </div>
-</div>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
 
-<!-- ===== Основной экран ===== -->
-<div id="mainScreen" class="screen" style="display:none">
-
-  <div class="sidebar">
-    <div class="me">Ты: <b id="meUsername"></b> <button id="logoutBtn" class="secondary small">Выйти</button></div>
-
-    <h3>Друзья</h3>
-    <div id="friendsList" class="list"></div>
-
-    <h3>Заявки в друзья</h3>
-    <div id="pendingList" class="list"></div>
-
-    <div class="add-friend">
-      <input id="addFriendInput" placeholder="Имя пользователя">
-      <button id="addFriendBtn">Добавить</button>
-    </div>
-    <div id="friendMsg" class="msg"></div>
-  </div>
-
-  <div class="content">
-
-    <div class="room-bar">
-      <button id="createRoomBtn">Создать комнату</button>
-      <span id="roomInfo"></span>
-      <div id="inviteBox" style="display:none">
-        Пригласить: <span id="inviteFriends"></span>
+  <section id="authScreen" class="auth-screen">
+    <div class="auth-showcase">
+      <a class="brand brand-large" href="#" aria-label="Sync Music">
+        <span class="brand-mark"><svg><use href="#i-logo"></use></svg></span>
+        <span>Sync Music</span>
+      </a>
+      <div class="auth-copy">
+        <div class="eyebrow"><svg><use href="#i-sparkles"></use></svg> Музыка звучит вместе</div>
+        <h1>Один трек.<br><span>Один момент.</span></h1>
+        <p>Создавай комнату, зови друзей и управляй воспроизведением так, будто вы сидите рядом.</p>
+      </div>
+      <div class="floating-player" aria-hidden="true">
+        <div class="floating-cover"></div>
+        <div class="floating-meta"><strong>Night Drive</strong><span>Sync session</span></div>
+        <div class="floating-wave"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       </div>
     </div>
 
-    <div class="search-bar">
-      <input id="searchInput" placeholder="Название трека...">
-      <button id="searchBtn">Искать</button>
-    </div>
-    <div id="searchResults" class="list"></div>
-
-    <div id="playerDock">
-      <div class="player-visual">
-        <div id="player"></div>
-      </div>
-      <div class="player-info">
-        <div id="nowPlaying" class="player-title">Выберите трек</div>
-        <div id="playerStatus" class="player-subtitle">Плеер готов</div>
-      </div>
-      <div class="player-controls">
-        <button id="rewindBtn" class="control">-5s</button>
-        <button id="playBtn" class="control primary-control">▶</button>
-        <button id="pauseBtn" class="control">⏸</button>
-        <button id="forwardBtn" class="control">+5s</button>
-      </div>
-      <div class="player-progress">
-        <div class="player-progress-track">
-          <div id="playerProgressFill"></div>
+    <div class="auth-panel">
+      <form id="authForm" class="auth-card" novalidate>
+        <div class="auth-card-heading">
+          <h2 id="authTitle">С возвращением</h2>
+          <p id="authSubtitle">Войди и продолжи слушать вместе</p>
         </div>
-        <div id="playerTime" class="player-time">0:00 / 0:00</div>
+        <div class="auth-tabs" role="tablist">
+          <button id="loginTab" class="auth-tab active" type="button">Вход</button>
+          <button id="registerTab" class="auth-tab" type="button">Регистрация</button>
+        </div>
+        <label class="field-label" for="usernameInput">Имя пользователя</label>
+        <div class="input-shell">
+          <input id="usernameInput" autocomplete="username" maxlength="32" placeholder="Например, misha" required>
+        </div>
+        <label class="field-label" for="passwordInput">Пароль</label>
+        <div class="input-shell password-shell">
+          <input id="passwordInput" type="password" autocomplete="current-password" minlength="6" placeholder="Минимум 6 символов" required>
+          <button id="passwordToggle" class="text-button" type="button">Показать</button>
+        </div>
+        <label class="remember-row"><input id="rememberMe" type="checkbox" checked><span class="fake-checkbox"><svg><use href="#i-check"></use></svg></span><span>Запомнить меня</span></label>
+        <button id="authSubmit" class="button button-primary button-large" type="submit"><span>Войти</span><svg><use href="#i-chevron"></use></svg></button>
+        <p id="authError" class="form-error" role="alert"></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="appScreen" class="app-screen hidden">
+    <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-top">
+        <a class="brand" href="#" data-view-link="home">
+          <span class="brand-mark"><svg><use href="#i-logo"></use></svg></span>
+          <span>Sync Music</span>
+        </a>
+        <button id="closeSidebarBtn" class="icon-button sidebar-close" aria-label="Закрыть меню"><svg><use href="#i-x"></use></svg></button>
+      </div>
+
+      <nav class="main-nav" aria-label="Основная навигация">
+        <button class="nav-item active" data-view="home"><svg><use href="#i-home"></use></svg><span>Главная</span></button>
+        <button class="nav-item" data-view="search"><svg><use href="#i-search"></use></svg><span>Поиск</span></button>
+        <button class="nav-item" data-view="friends"><svg><use href="#i-users"></use></svg><span>Друзья</span><span id="friendBadge" class="nav-badge hidden">0</span></button>
+        <button class="nav-item" data-view="room"><svg><use href="#i-radio"></use></svg><span>Комната</span><span id="roomLiveDot" class="live-dot hidden"></span></button>
+      </nav>
+
+      <div class="sidebar-section-label">YouTube</div>
+      <div id="youtubeCard" class="youtube-card">
+        <div id="youtubeDisconnected" class="youtube-disconnected">
+          <span class="youtube-icon"><svg><use href="#i-youtube"></use></svg></span>
+          <div><strong>Подключи аккаунт</strong><p>Плейлисты и личный профиль</p></div>
+          <button id="youtubeConnectBtn" class="button button-soft button-small">Подключить</button>
+        </div>
+        <div id="youtubeConnected" class="youtube-connected hidden">
+          <img id="youtubeAvatar" alt="Аватар Google">
+          <div class="youtube-profile"><strong id="youtubeAccountName">YouTube</strong><span id="youtubeAccountMeta">Подключено</span></div>
+          <button id="youtubeDisconnectBtn" class="icon-button compact" aria-label="Отключить YouTube"><svg><use href="#i-log-out"></use></svg></button>
+        </div>
+        <button id="openYoutubeBtn" class="youtube-login-link"><svg><use href="#i-external"></use></svg><span>Войти на music.youtube.com</span></button>
+      </div>
+
+      <div class="sidebar-spacer"></div>
+      <div class="user-card">
+        <div id="sidebarAvatar" class="avatar">S</div>
+        <div class="user-card-meta"><strong id="sidebarUsername">Пользователь</strong><span><i class="status-dot online"></i> Онлайн</span></div>
+        <button id="logoutBtn" class="icon-button" aria-label="Выйти"><svg><use href="#i-log-out"></use></svg></button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <button id="mobileMenuBtn" class="icon-button mobile-menu" aria-label="Открыть меню"><svg><use href="#i-menu"></use></svg></button>
+        <div id="searchShell" class="global-search">
+          <svg class="search-icon"><use href="#i-search"></use></svg>
+          <input id="searchInput" autocomplete="off" placeholder="Найти трек, исполнителя или альбом" aria-label="Поиск музыки">
+          <button id="searchClearBtn" class="icon-button compact search-clear hidden" aria-label="Очистить поиск"><svg><use href="#i-x"></use></svg></button>
+          <kbd>Ctrl K</kbd>
+          <div id="searchSuggestions" class="suggestions hidden" role="listbox"></div>
+        </div>
+        <button id="roomShortcut" class="room-shortcut"><span class="room-shortcut-icon"><svg><use href="#i-radio"></use></svg></span><span><small>Комната</small><strong id="roomShortcutText">Не подключена</strong></span></button>
+      </header>
+
+      <div class="content-layout">
+        <main id="mainContent" class="main-content">
+          <section id="view-home" class="view active" data-view-panel="home">
+            <div class="hero-card reveal">
+              <div class="hero-copy">
+                <div class="eyebrow"><span class="pulse-dot"></span> Слушайте одновременно</div>
+                <h1 id="welcomeTitle">Привет!</h1>
+                <p>Найди трек, создай комнату и отправь приглашение другу. Всё управление синхронизируется автоматически.</p>
+                <div class="hero-actions">
+                  <button id="heroSearchBtn" class="button button-primary"><svg><use href="#i-search"></use></svg>Найти музыку</button>
+                  <button id="heroCreateRoomBtn" class="button button-glass"><svg><use href="#i-plus"></use></svg>Создать комнату</button>
+                </div>
+              </div>
+              <div class="hero-orbit" aria-hidden="true">
+                <div class="vinyl"><div class="vinyl-center"><svg><use href="#i-logo"></use></svg></div></div>
+                <span class="orbit-person person-one">M</span><span class="orbit-person person-two">A</span><span class="orbit-person person-three">D</span>
+              </div>
+            </div>
+
+            <div class="stats-grid reveal delay-one">
+              <button class="stat-card" data-open-view="friends"><span class="stat-icon purple"><svg><use href="#i-users"></use></svg></span><span><small>Друзья</small><strong id="friendCount">0</strong></span><svg class="stat-arrow"><use href="#i-chevron"></use></svg></button>
+              <button class="stat-card" data-open-view="friends"><span class="stat-icon green"><span class="online-ring"></span></span><span><small>Сейчас онлайн</small><strong id="onlineCount">0</strong></span><svg class="stat-arrow"><use href="#i-chevron"></use></svg></button>
+              <button class="stat-card" data-open-view="room"><span class="stat-icon pink"><svg><use href="#i-radio"></use></svg></span><span><small>Текущая сессия</small><strong id="roomStat">Нет комнаты</strong></span><svg class="stat-arrow"><use href="#i-chevron"></use></svg></button>
+            </div>
+
+            <div class="section-heading reveal delay-two"><div><span class="section-kicker">Продолжить</span><h2>Недавно слушали</h2></div><button id="clearRecentBtn" class="text-action hidden"><svg><use href="#i-trash"></use></svg>Очистить</button></div>
+            <div id="recentGrid" class="track-grid reveal delay-two"></div>
+            <div id="recentEmpty" class="empty-state compact reveal delay-two"><span class="empty-icon"><svg><use href="#i-clock"></use></svg></span><strong>История пока пустая</strong><p>Запусти первый трек — он появится здесь.</p></div>
+          </section>
+
+          <section id="view-search" class="view" data-view-panel="search">
+            <div class="page-heading"><div><span class="section-kicker">YouTube Music</span><h1>Поиск</h1><p id="searchDescription">Начни вводить название трека или исполнителя.</p></div></div>
+            <div id="searchSkeleton" class="search-skeleton hidden" aria-hidden="true"></div>
+            <div id="searchResults" class="search-results"></div>
+            <div id="searchEmpty" class="empty-state"><span class="empty-icon"><svg><use href="#i-search"></use></svg></span><strong>Здесь появятся результаты</strong><p>Подсказки появляются прямо во время ввода.</p></div>
+          </section>
+
+          <section id="view-friends" class="view" data-view-panel="friends">
+            <div class="page-heading split"><div><span class="section-kicker">Твоя компания</span><h1>Друзья</h1><p>Добавляй людей и приглашай их в совместную сессию.</p></div><div class="add-friend-box"><input id="addFriendInput" placeholder="Имя пользователя"><button id="addFriendBtn" class="button button-primary"><svg><use href="#i-plus"></use></svg>Добавить</button></div></div>
+            <p id="friendMessage" class="inline-message"></p>
+            <div id="pendingSection" class="panel hidden"><div class="panel-heading"><div><h2>Входящие заявки</h2><span id="pendingCount" class="count-pill">0</span></div></div><div id="pendingList" class="people-list"></div></div>
+            <div class="panel"><div class="panel-heading"><div><h2>Все друзья</h2><span id="friendsCountLabel" class="count-pill">0</span></div><span class="panel-hint">Онлайн обновляется автоматически</span></div><div id="friendsList" class="people-list"></div><div id="friendsEmpty" class="empty-state compact"><span class="empty-icon"><svg><use href="#i-users"></use></svg></span><strong>Добавь первого друга</strong><p>Найди его по имени пользователя.</p></div></div>
+          </section>
+
+          <section id="view-room" class="view" data-view-panel="room">
+            <div class="page-heading"><div><span class="section-kicker">Совместная сессия</span><h1>Комната</h1><p>Каждый участник может управлять треком, паузой и перемоткой.</p></div></div>
+            <div id="roomEmptyPanel" class="room-empty-layout">
+              <div class="room-action-card create-card"><span class="room-action-icon"><svg><use href="#i-plus"></use></svg></span><h2>Создать новую</h2><p>Получишь код и сможешь пригласить друзей одним нажатием.</p><button id="createRoomBtn" class="button button-primary button-large">Создать комнату</button></div>
+              <div class="room-action-card join-card"><span class="room-action-icon"><svg><use href="#i-radio"></use></svg></span><h2>Войти по коду</h2><p>Введи шестизначный код, который прислал друг.</p><div class="room-code-input"><input id="joinRoomInput" maxlength="6" placeholder="A1B2C3"><button id="joinRoomBtn" class="button button-soft">Войти</button></div></div>
+            </div>
+            <div id="roomActivePanel" class="room-active hidden">
+              <div class="room-live-card">
+                <div class="room-live-top"><div><div class="eyebrow"><span class="pulse-dot"></span> Комната активна</div><div class="room-code-row"><strong id="roomCodeText">------</strong><button id="copyRoomCodeBtn" class="icon-button" aria-label="Скопировать код"><svg><use href="#i-copy"></use></svg></button></div><p>Отправь этот код друзьям или пригласи их ниже.</p></div><button id="leaveRoomBtn" class="button button-danger">Выйти</button></div>
+                <div class="room-members-header"><h3>Участники</h3><span id="roomMemberCount" class="count-pill">0</span></div><div id="roomMembers" class="member-chips"></div>
+              </div>
+              <div class="panel"><div class="panel-heading"><div><h2>Пригласить друзей</h2><span class="panel-hint">Только тех, кто сейчас онлайн</span></div></div><div id="inviteFriends" class="people-list"></div><div id="inviteEmpty" class="empty-state compact hidden"><strong>Никого нет онлайн</strong><p>Друг сможет войти самостоятельно по коду комнаты.</p></div></div>
+            </div>
+          </section>
+        </main>
+
+        <aside class="right-rail">
+          <section class="now-playing-card">
+            <div class="rail-heading"><span>Сейчас играет</span><span id="playerConnectionBadge" class="connection-badge"><i></i> Плеер загружается</span></div>
+            <div class="youtube-stage"><div id="youtubePlayer"></div><div id="videoPlaceholder" class="video-placeholder"><span class="brand-mark"><svg><use href="#i-logo"></use></svg></span><strong>Выбери трек</strong><span>Видео появится здесь</span></div></div>
+            <div class="rail-track-meta"><div><strong id="railTrackTitle">Ничего не играет</strong><span id="railTrackArtist">Найди музыку через поиск</span></div><button id="openVideoBtn" class="icon-button" aria-label="Открыть на YouTube" disabled><svg><use href="#i-external"></use></svg></button></div>
+          </section>
+          <section class="queue-card">
+            <div class="rail-heading"><span>Очередь</span><button id="clearQueueBtn" class="text-action hidden">Очистить</button></div>
+            <div id="queueList" class="queue-list"></div>
+            <div id="queueEmpty" class="queue-empty">Добавляй треки кнопкой <strong>+</strong></div>
+          </section>
+        </aside>
       </div>
     </div>
 
+    <footer id="playerDock" class="player-dock">
+      <div class="dock-track">
+        <div class="dock-thumb-wrap"><img id="dockThumb" src="" alt=""><span id="dockThumbFallback" class="dock-thumb-fallback"><svg><use href="#i-logo"></use></svg></span></div>
+        <div class="dock-meta"><strong id="dockTitle">Выбери трек</strong><span id="dockArtist">Sync Music</span></div>
+      </div>
+      <div class="dock-center">
+        <div class="dock-controls"><button id="prevBtn" class="icon-button player-button" aria-label="Предыдущий трек"><svg><use href="#i-prev"></use></svg></button><button id="playPauseBtn" class="play-button" aria-label="Воспроизвести"><svg><use href="#i-play"></use></svg></button><button id="nextBtn" class="icon-button player-button" aria-label="Следующий трек"><svg><use href="#i-next"></use></svg></button></div>
+        <div class="progress-row"><span id="currentTime">0:00</span><input id="seekBar" class="range" type="range" min="0" max="1000" value="0" aria-label="Перемотка"><span id="durationTime">0:00</span></div>
+      </div>
+      <div class="dock-actions"><span id="syncStatus" class="sync-status"><i></i><span>Локальное прослушивание</span></span><button id="volumeBtn" class="icon-button compact" aria-label="Выключить звук"><svg><use href="#i-volume"></use></svg></button><input id="volumeSlider" class="range volume-range" type="range" min="0" max="100" value="75" aria-label="Громкость"></div>
+    </footer>
   </div>
-</div>
 
-<div id="inviteModal" class="modal hidden">
-  <div class="modal-card">
-    <div class="modal-title">Приглашение в комнату</div>
-    <div class="modal-text"><span id="inviteFrom"></span> приглашает тебя в комнату <strong id="inviteRoom"></strong></div>
-    <div class="modal-actions">
-      <button id="joinInviteBtn" class="primary">Присоединиться</button>
-      <button id="declineInviteBtn" class="secondary">Отказаться</button>
-    </div>
+  <div id="inviteModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="inviteModalTitle">
+    <div class="modal-card invite-modal-card"><button id="closeInviteModalBtn" class="icon-button modal-close" aria-label="Закрыть"><svg><use href="#i-x"></use></svg></button><span class="modal-icon"><svg><use href="#i-radio"></use></svg></span><h2 id="inviteModalTitle">Тебя зовут слушать вместе</h2><p><strong id="inviteFrom">Друг</strong> приглашает в комнату <span id="inviteRoom">------</span>.</p><div class="modal-actions"><button id="declineInviteBtn" class="button button-soft">Не сейчас</button><button id="joinInviteBtn" class="button button-primary">Присоединиться</button></div></div>
   </div>
-</div>
 
-<div id="toast" class="toast"></div>
+  <div id="youtubeSetupModal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-card setup-modal-card"><button id="closeYoutubeSetupBtn" class="icon-button modal-close" aria-label="Закрыть"><svg><use href="#i-x"></use></svg></button><span class="modal-icon youtube"><svg><use href="#i-youtube"></use></svg></span><h2>Нужно настроить Google OAuth</h2><p>Добавь Web OAuth Client ID в переменную <code>GOOGLE_CLIENT_ID</code> и перезапусти сервер. Инструкция уже лежит в README.</p><p class="modal-note">OAuth подключает профиль и доступ к личным данным YouTube. Premium определяется самой сессией YouTube в браузере и не может быть включён приложением принудительно.</p><button id="openYoutubeSetupDocsBtn" class="button button-primary button-large">Открыть README</button></div>
+  </div>
 
-<script src="/static/app.js"></script>
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
 </body>
 </html>

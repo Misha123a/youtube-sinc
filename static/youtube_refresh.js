@@ -93,8 +93,6 @@
   const isHost = () => Boolean(state.roomCode && state.roomHost && state.username && state.roomHost.toLowerCase() === state.username.toLowerCase());
   const originalHandleSocketMessage = handleSocketMessage;
 
-  // Only the host sends periodic clock updates. Explicit user actions from any
-  // participant are still sent immediately through the force flag.
   broadcastSync = function broadcastSyncHostOnly(force = false) {
     if (!state.roomCode || !state.currentSong || !state.playerReady) return;
     if (!force && !isHost()) return;
@@ -108,8 +106,6 @@
     });
   };
 
-  // Do not answer room state requests from every participant. One authoritative
-  // response from the host is enough and prevents sync feedback loops.
   handleSocketMessage = function handleSocketMessageHostOnly(message) {
     if (message?.type === 'request_state') {
       if (isHost()) broadcastSync(true);
@@ -118,8 +114,6 @@
     originalHandleSocketMessage(message);
   };
 
-  // Remote playback commands are applied immediately, but ordinary clock
-  // updates never seek for tiny differences and never alter playback speed.
   applyRemoteSync = function applyRemoteSyncStable(message) {
     if (!message?.videoId) return;
 
@@ -152,12 +146,8 @@
 
       if (remotePlaying) {
         state.player.playVideo();
-        // Hard correction only for a real desync. Sub-second differences are
-        // intentionally ignored so the audio cannot jump every few seconds.
         if (drift > 2.25) state.player.seekTo(target, true);
       } else {
-        // Pause is always immediate. Correct the paused position only when the
-        // difference is large enough to be visible.
         state.player.pauseVideo();
         if (drift > 0.9) state.player.seekTo(target, true);
       }
@@ -166,8 +156,6 @@
     setTimeout(() => { state.suppressPlayerEvent = false; }, 1100);
   };
 
-  // Any participant may press play or pause. That deliberate action is sent
-  // immediately, while automatic player events remain host-only.
   togglePlayback = function togglePlaybackImmediate() {
     if (!state.playerReady || !state.currentSong) return;
     const shouldPlay = !state.playing;
@@ -183,8 +171,6 @@
   };
 
   document.addEventListener('DOMContentLoaded', () => {
-    // A manual seek is also an explicit room command and must be broadcast by
-    // guests as well as the host.
     const seek = document.getElementById('seekBar');
     if (seek) {
       const originalSeek = seek.onchange;
@@ -194,4 +180,59 @@
       };
     }
   });
+})();
+
+/* stale-track-rollback-guard-v1 */
+(() => {
+  let acceptedVideoId = state.currentSong?.videoId || '';
+  let acceptedQueueId = state.currentQueueId || '';
+  let trackSwitchAt = 0;
+  const STALE_SYNC_GUARD_MS = 8000;
+  const previousHandleSocketMessage = handleSocketMessage;
+
+  handleSocketMessage = function handleSocketMessageWithTrackGuard(message) {
+    if (!message) return;
+
+    if (message.type === 'queue_play' && message.song?.videoId) {
+      acceptedVideoId = String(message.song.videoId);
+      acceptedQueueId = String(message.currentQueueId || '');
+      trackSwitchAt = Date.now();
+      previousHandleSocketMessage(message);
+      return;
+    }
+
+    if (message.type === 'queue_updated') {
+      const incomingQueueId = String(message.currentQueueId || '');
+      if (incomingQueueId && incomingQueueId !== acceptedQueueId) {
+        const item = (message.queue || []).find((entry) => String(entry.id) === incomingQueueId);
+        if (item?.videoId) {
+          acceptedQueueId = incomingQueueId;
+          acceptedVideoId = String(item.videoId);
+          trackSwitchAt = Date.now();
+        }
+      }
+      previousHandleSocketMessage(message);
+      return;
+    }
+
+    if (message.type === 'sync' && message.videoId) {
+      const incomingVideoId = String(message.videoId);
+      const currentVideoId = String(state.currentSong?.videoId || acceptedVideoId || '');
+      const protectedVideoId = acceptedVideoId || currentVideoId;
+      const insideGuardWindow = Date.now() - trackSwitchAt < STALE_SYNC_GUARD_MS;
+
+      if (protectedVideoId && incomingVideoId !== protectedVideoId) {
+        if (insideGuardWindow || currentVideoId === protectedVideoId) {
+          console.debug('Ignored stale room sync', {
+            incomingVideoId,
+            protectedVideoId,
+            acceptedQueueId
+          });
+          return;
+        }
+      }
+    }
+
+    previousHandleSocketMessage(message);
+  };
 })();

@@ -14,7 +14,6 @@ _BAD_VERSION = re.compile(
     r"nightcore|remaster(?:ed)?|extended(?: mix)?|8d audio|bass boosted|lyrics?)\b",
     re.IGNORECASE,
 )
-_BRACKETS = re.compile(r"[\[(].*?[\])]|")
 _NON_WORD = re.compile(r"[^\w\s]+", re.UNICODE)
 
 
@@ -80,7 +79,6 @@ def build_smart_radio(
         for radio_rank, candidate in enumerate(candidates):
             pool.append((candidate, seed_index, radio_rank))
 
-    # Fallback for unavailable radio responses.
     if not pool:
         artist = _text(current.get("artist"))
         for query in (f"{artist} similar", f"{artist} essentials", artist):
@@ -106,9 +104,7 @@ def build_smart_radio(
         if _is_bad_version(candidate):
             continue
 
-        score = 100.0
-        score -= seed_index * 4.0
-        score -= min(radio_rank, 30) * 1.2
+        score = 100.0 - seed_index * 4.0 - min(radio_rank, 30) * 1.2
         if artist and artist in recent_artists:
             score += min(12.0, recent_artists[artist] * 3.0)
         if title in recent_titles:

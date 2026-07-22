@@ -1,17 +1,34 @@
-"""SQLite storage for Sync Music accounts, friendships and public profile data."""
+"""SQLite storage for Sync Music accounts, friendships, sessions and profile data."""
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
 
-DB_PATH = Path(__file__).parent / "app.db"
+
+def _resolve_db_path() -> Path:
+    explicit_path = os.getenv("DATABASE_PATH", "").strip()
+    if explicit_path:
+        return Path(explicit_path).expanduser()
+
+    volume_path = os.getenv("RAILWAY_VOLUME_MOUNT_PATH", "").strip()
+    if volume_path:
+        return Path(volume_path) / "app.db"
+
+    return Path(__file__).parent / "app.db"
+
+
+DB_PATH = _resolve_db_path()
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_db() -> sqlite3.Connection:
-    connection = sqlite3.connect(DB_PATH)
+    connection = sqlite3.connect(DB_PATH, timeout=15)
     connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA foreign_keys = ON")
+    connection.execute("PRAGMA busy_timeout = 15000")
     return connection
 
 
@@ -43,11 +60,46 @@ def init_db() -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(from_user, to_user)
             );
+
+            CREATE TABLE IF NOT EXISTS sessions (
+                token TEXT PRIMARY KEY,
+                username TEXT COLLATE NOCASE NOT NULL,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_sessions_username
+            ON sessions(username);
             """
         )
         _ensure_column(connection, "users", "google_name", "TEXT")
         _ensure_column(connection, "users", "google_avatar", "TEXT")
         _ensure_column(connection, "users", "google_email", "TEXT")
+
+
+def create_session(token: str, username: str) -> None:
+    with get_db() as connection:
+        connection.execute(
+            "INSERT OR REPLACE INTO sessions (token, username) VALUES (?, ?)",
+            (token, username),
+        )
+
+
+def get_session_username(token: str) -> str | None:
+    if not token:
+        return None
+    with get_db() as connection:
+        row = connection.execute(
+            "SELECT username FROM sessions WHERE token = ?",
+            (token,),
+        ).fetchone()
+    return str(row["username"]) if row else None
+
+
+def delete_session(token: str) -> None:
+    if not token:
+        return
+    with get_db() as connection:
+        connection.execute("DELETE FROM sessions WHERE token = ?", (token,))
 
 
 def user_exists(username: str) -> bool:
@@ -153,6 +205,7 @@ def get_public_profiles(usernames: list[str]) -> dict[str, dict[str, Any]]:
         )
         for name in clean
     }
+
 
 def add_friend_request(from_user: str, to_user: str) -> str:
     with get_db() as connection:

@@ -1,4 +1,4 @@
-"""YouTube Music search helpers with caching for ordinary searches."""
+"""YouTube Music search and radio helpers."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -16,6 +16,30 @@ def _thumbnail(items: list[dict[str, Any]] | None) -> str:
     return str(thumbnails[-1].get("url", "")).replace("http://", "https://") if thumbnails else ""
 
 
+def _normalize_track(item: dict[str, Any], source: str = "search") -> dict[str, Any] | None:
+    video_id = item.get("videoId")
+    if not video_id:
+        return None
+    artists = ", ".join(
+        artist.get("name", "")
+        for artist in item.get("artists", [])
+        if isinstance(artist, dict) and artist.get("name")
+    )
+    album_data = item.get("album") or {}
+    album = album_data.get("name", "") if isinstance(album_data, dict) else ""
+    return {
+        "videoId": video_id,
+        "title": item.get("title", "Без названия"),
+        "artist": artists or item.get("author") or "Неизвестный исполнитель",
+        "album": album,
+        "duration": item.get("duration") or item.get("length") or "",
+        "durationSeconds": item.get("duration_seconds") or item.get("lengthSeconds"),
+        "thumbnail": _thumbnail(item.get("thumbnails") or item.get("thumbnail")),
+        "isExplicit": bool(item.get("isExplicit", False)),
+        "source": source,
+    }
+
+
 def _search_raw(query: str, limit: int) -> list[dict[str, Any]]:
     clean = " ".join(query.split()).strip()
     if not clean:
@@ -23,29 +47,9 @@ def _search_raw(query: str, limit: int) -> list[dict[str, Any]]:
 
     songs: list[dict[str, Any]] = []
     for item in _yt.search(clean, filter="songs", limit=limit):
-        video_id = item.get("videoId")
-        if not video_id:
-            continue
-        artists = ", ".join(
-            artist.get("name", "")
-            for artist in item.get("artists", [])
-            if artist.get("name")
-        )
-        album_data = item.get("album") or {}
-        album = album_data.get("name", "") if isinstance(album_data, dict) else ""
-        songs.append(
-            {
-                "videoId": video_id,
-                "title": item.get("title", "Без названия"),
-                "artist": artists or "Неизвестный исполнитель",
-                "album": album,
-                "duration": item.get("duration", ""),
-                "durationSeconds": item.get("duration_seconds"),
-                "thumbnail": _thumbnail(item.get("thumbnails")),
-                "isExplicit": bool(item.get("isExplicit", False)),
-                "source": "search",
-            }
-        )
+        normalized = _normalize_track(item)
+        if normalized:
+            songs.append(normalized)
     return songs
 
 
@@ -56,13 +60,7 @@ def _search_songs_cached(query: str, limit: int) -> tuple[tuple[tuple[str, Any],
 
 
 def search_songs(query: str, limit: int = 24) -> list[dict[str, Any]]:
-    """Search songs.
-
-    Recommendation builders request 15 items (10 visible plus 5 spare). For that
-    request shape we deliberately fetch a larger pool and shuffle it so each manual
-    or timed library refresh can produce a different set. Normal search remains
-    cached and stable.
-    """
+    """Search songs while rotating recommendation-sized result sets."""
     clean = " ".join(query.split()).strip()
     if not clean:
         return []
@@ -74,6 +72,23 @@ def search_songs(query: str, limit: int = 24) -> list[dict[str, Any]]:
 
     cached = _search_songs_cached(clean, limit)
     return [dict(song) for song in cached]
+
+
+def radio_songs(video_id: str, limit: int = 40) -> list[dict[str, Any]]:
+    """Return a changing YouTube Music radio playlist seeded by one track."""
+    clean_id = str(video_id or "").strip()
+    if not clean_id:
+        return []
+    payload = _yt.get_watch_playlist(videoId=clean_id, limit=max(10, limit), radio=True)
+    tracks = payload.get("tracks") or []
+    songs: list[dict[str, Any]] = []
+    for item in tracks:
+        if not isinstance(item, dict):
+            continue
+        normalized = _normalize_track(item, source="youtube_radio")
+        if normalized:
+            songs.append(normalized)
+    return songs
 
 
 @lru_cache(maxsize=512)

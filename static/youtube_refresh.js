@@ -87,3 +87,111 @@
     startBackgroundRefresh();
   });
 })();
+
+/* host-authoritative-room-sync-v1 */
+(() => {
+  const isHost = () => Boolean(state.roomCode && state.roomHost && state.username && state.roomHost.toLowerCase() === state.username.toLowerCase());
+  const originalHandleSocketMessage = handleSocketMessage;
+
+  // Only the host sends periodic clock updates. Explicit user actions from any
+  // participant are still sent immediately through the force flag.
+  broadcastSync = function broadcastSyncHostOnly(force = false) {
+    if (!state.roomCode || !state.currentSong || !state.playerReady) return;
+    if (!force && !isHost()) return;
+    sendWS({
+      type: 'sync',
+      videoId: state.currentSong.videoId,
+      state: state.playing ? 'playing' : 'paused',
+      time: state.player.getCurrentTime?.() || 0,
+      ts: Date.now(),
+      song: state.currentSong
+    });
+  };
+
+  // Do not answer room state requests from every participant. One authoritative
+  // response from the host is enough and prevents sync feedback loops.
+  handleSocketMessage = function handleSocketMessageHostOnly(message) {
+    if (message?.type === 'request_state') {
+      if (isHost()) broadcastSync(true);
+      return;
+    }
+    originalHandleSocketMessage(message);
+  };
+
+  // Remote playback commands are applied immediately, but ordinary clock
+  // updates never seek for tiny differences and never alter playback speed.
+  applyRemoteSync = function applyRemoteSyncStable(message) {
+    if (!message?.videoId) return;
+
+    const song = message.song || {
+      videoId: message.videoId,
+      title: 'YouTube',
+      artist: 'Синхронизация'
+    };
+    const remotePlaying = message.state === 'playing';
+    const networkDelay = remotePlaying
+      ? Math.min(1.5, Math.max(0, (Date.now() - (message.ts || Date.now())) / 1000))
+      : 0;
+    const target = Math.max(0, Number(message.time || 0) + networkDelay);
+
+    state.suppressPlayerEvent = true;
+    clearTimeout(state.syncRateResetTimer);
+    try { state.player?.setPlaybackRate?.(1); } catch {}
+
+    if (!state.currentSong || state.currentSong.videoId !== message.videoId) {
+      state.currentSong = song;
+      updatePlayerUI(song);
+      playSongInternal(song, remotePlaying, target);
+      setTimeout(() => { state.suppressPlayerEvent = false; }, 1100);
+      return;
+    }
+
+    if (state.playerReady) {
+      const current = state.player.getCurrentTime?.() || 0;
+      const drift = Math.abs(target - current);
+
+      if (remotePlaying) {
+        state.player.playVideo();
+        // Hard correction only for a real desync. Sub-second differences are
+        // intentionally ignored so the audio cannot jump every few seconds.
+        if (drift > 2.25) state.player.seekTo(target, true);
+      } else {
+        // Pause is always immediate. Correct the paused position only when the
+        // difference is large enough to be visible.
+        state.player.pauseVideo();
+        if (drift > 0.9) state.player.seekTo(target, true);
+      }
+    }
+
+    setTimeout(() => { state.suppressPlayerEvent = false; }, 1100);
+  };
+
+  // Any participant may press play or pause. That deliberate action is sent
+  // immediately, while automatic player events remain host-only.
+  togglePlayback = function togglePlaybackImmediate() {
+    if (!state.playerReady || !state.currentSong) return;
+    const shouldPlay = !state.playing;
+    if (shouldPlay) state.player.playVideo();
+    else state.player.pauseVideo();
+
+    if (state.roomCode) {
+      setTimeout(() => {
+        state.playing = shouldPlay;
+        broadcastSync(true);
+      }, 40);
+    }
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // A manual seek is also an explicit room command and must be broadcast by
+    // guests as well as the host.
+    const seek = document.getElementById('seekBar');
+    if (seek) {
+      const originalSeek = seek.onchange;
+      seek.onchange = (event) => {
+        if (typeof originalSeek === 'function') originalSeek.call(seek, event);
+        if (state.roomCode) setTimeout(() => broadcastSync(true), 20);
+      };
+    }
+  });
+})();

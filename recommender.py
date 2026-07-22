@@ -81,7 +81,14 @@ def build_smart_radio(
 
     if not pool:
         artist = _text(current.get("artist"))
-        for query in (f"{artist} similar", f"{artist} essentials", artist):
+        title = _text(current.get("title"))
+        for query in (
+            f"{artist} similar",
+            f"{artist} essentials",
+            f"{artist} radio",
+            f"{artist} {title}",
+            artist,
+        ):
             if not query.strip():
                 continue
             try:
@@ -144,3 +151,110 @@ def build_smart_radio(
         if len(result) >= limit:
             break
     return result
+
+
+def install_room_queue_upgrade() -> None:
+    """Keep every active room supplied with a server-authoritative upcoming queue."""
+    try:
+        import ws_manager
+    except Exception:
+        return
+
+    manager = ws_manager.manager
+    if getattr(manager, "_infinite_queue_v2", False):
+        return
+
+    original_broadcast_queue = manager.broadcast_queue
+    target_upcoming = 30
+    refill_at = 15
+
+    def upcoming_count(room: Any) -> int:
+        if not room.queue:
+            return 0
+        current_index = next(
+            (index for index, item in enumerate(room.queue) if item.get("id") == room.current_id),
+            -1,
+        )
+        return len(room.queue) - current_index - 1 if current_index >= 0 else len(room.queue)
+
+    def remember_current(room: Any) -> list[dict[str, Any]]:
+        history = list(getattr(room, "radio_history", []))
+        current = next((item for item in room.queue if item.get("id") == room.current_id), None)
+        if current and current.get("videoId"):
+            history = [item for item in history if item.get("videoId") != current.get("videoId")]
+            history.insert(0, dict(current))
+        room.radio_history = history[:100]
+        return room.radio_history
+
+    def fill_room(room_code: str) -> None:
+        room = manager.rooms.get(room_code)
+        if not room or not room.queue or upcoming_count(room) >= refill_at:
+            return
+
+        current = manager.current_queue_item(room_code) or room.queue[-1]
+        history = remember_current(room)
+        excluded = {
+            str(item.get("videoId") or "")
+            for item in [*room.queue, *history]
+            if item.get("videoId")
+        }
+        needed = max(0, target_upcoming - upcoming_count(room))
+        if not needed:
+            return
+
+        candidates = build_smart_radio(
+            current=current,
+            recent=history,
+            exclude_video_ids=excluded,
+            limit=min(30, needed + 12),
+        )
+
+        if len(candidates) < needed:
+            artist = _text(current.get("artist"))
+            title = _text(current.get("title"))
+            fallback_queries = (
+                f"{artist} radio",
+                f"{artist} similar songs",
+                f"{artist} mix",
+                f"{artist} {title}",
+                artist,
+            )
+            for query in fallback_queries:
+                if not query.strip() or len(candidates) >= needed + 8:
+                    continue
+                try:
+                    candidates.extend(search_songs(query, limit=30))
+                except Exception:
+                    continue
+
+        seen_titles = {_title_key(item) for item in room.queue if _title_key(item)}
+        for candidate in candidates:
+            video_id = _text(candidate.get("videoId"))
+            title_key = _title_key(candidate)
+            if not video_id or video_id in excluded or not title_key or title_key in seen_titles:
+                continue
+            if _is_bad_version(candidate):
+                continue
+            _, duplicate = manager.add_queue_item(
+                room_code,
+                {**candidate, "source": "smart_radio"},
+                "Умная очередь",
+            )
+            if not duplicate:
+                excluded.add(video_id)
+                seen_titles.add(title_key)
+            if upcoming_count(room) >= target_upcoming:
+                break
+
+    async def broadcast_queue_with_refill(room_code: str, **extra: Any) -> None:
+        try:
+            fill_room(room_code)
+        except Exception as exc:
+            print(f"Room queue refill failed for {room_code}: {exc}")
+        await original_broadcast_queue(room_code, **extra)
+
+    manager.broadcast_queue = broadcast_queue_with_refill
+    manager._infinite_queue_v2 = True
+
+
+install_room_queue_upgrade()

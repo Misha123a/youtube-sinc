@@ -236,3 +236,72 @@
     previousHandleSocketMessage(message);
   };
 })();
+
+/* restore-player-tools-v1 */
+(() => {
+  function repairPlayerTools() {
+    const bar = document.querySelector('.player-bar');
+    const tools = bar?.querySelector('.player-tools');
+    const extras = bar?.querySelector('.player-extra-actions');
+    const queue = document.getElementById('queueBtn');
+    const volumeIcon = tools?.querySelector('.volume-icon');
+    const volume = document.getElementById('volumeBar');
+    if (!bar || !tools) return;
+
+    if (extras && extras.parentElement !== tools) tools.prepend(extras);
+    if (queue && queue.parentElement !== tools) tools.append(queue);
+    if (volumeIcon && volumeIcon.parentElement !== tools) tools.append(volumeIcon);
+    if (volume && volume.parentElement !== tools) tools.append(volume);
+
+    if (queue) {
+      queue.hidden = false;
+      queue.style.display = 'inline-flex';
+      queue.setAttribute('aria-label', 'Открыть очередь');
+    }
+    if (volume) {
+      volume.hidden = false;
+      volume.style.display = '';
+      volume.setAttribute('aria-label', 'Громкость');
+    }
+  }
+
+  function injectPlayerRepairStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+      .player-bar{grid-template-columns:minmax(220px,1fr) minmax(320px,1.35fr) auto!important}
+      .player-tools{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:8px!important;min-width:270px!important}
+      .player-tools .player-extra-actions{display:flex!important;align-items:center!important;gap:3px!important;margin:0!important}
+      #queueBtn{display:inline-flex!important;visibility:visible!important;opacity:1!important;flex:0 0 44px!important}
+      .player-tools .volume-icon{display:block!important;visibility:visible!important;flex:0 0 20px!important}
+      #volumeBar{display:block!important;visibility:visible!important;opacity:1!important;width:110px!important;min-width:78px!important;flex:0 1 110px!important}
+      .queue-votes,.queue-vote,.vote-button,[data-queue-vote]{display:none!important}
+      @media(max-width:1050px) and (min-width:901px){
+        .player-bar{grid-template-columns:minmax(190px,1fr) minmax(270px,1.15fr) auto!important}
+        .player-tools{min-width:220px!important;gap:5px!important}
+        #volumeBar{width:78px!important}
+      }
+      @media(max-width:900px){
+        .player-bar{grid-template-columns:minmax(0,1fr) auto!important;height:auto!important;min-height:76px!important}
+        .player-center{display:none!important}
+        .player-tools{display:flex!important;min-width:0!important;gap:2px!important}
+        .player-tools .player-extra-actions{display:flex!important}
+        .player-tools .volume-icon{display:none!important}
+        #volumeBar{display:block!important;width:54px!important;min-width:46px!important;max-width:60px!important;flex:0 0 54px!important}
+        #queueBtn{flex:0 0 40px!important;width:40px!important;height:40px!important}
+      }
+      @media(max-width:560px){
+        #volumeBar{width:46px!important;min-width:42px!important;flex-basis:46px!important}
+        .player-extra-button{width:38px!important;height:38px!important}
+      }
+    `;
+    document.head.append(style);
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    injectPlayerRepairStyles();
+    repairPlayerTools();
+    setTimeout(repairPlayerTools, 250);
+    setTimeout(repairPlayerTools, 1200);
+    new MutationObserver(repairPlayerTools).observe(document.body, {childList:true, subtree:true});
+  });
+})();

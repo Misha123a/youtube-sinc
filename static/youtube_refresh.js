@@ -59,8 +59,6 @@
       const next = state.autoQueueEnabled === false;
       setAutoQueueState(next, !state.roomCode);
       if (state.roomCode) {
-        // Reuse the queue mutation channel so the setting is authoritative on the server
-        // and immediately shared with every member of the room.
         sendWS({
           type: 'queue_remove',
           itemId: next ? '__AUTO_QUEUE_ON__' : '__AUTO_QUEUE_OFF__'
@@ -204,4 +202,204 @@
     setTimeout(injectAutoQueueToggle, 250);
     setTimeout(injectAutoQueueToggle, 1200);
   });
+})();
+
+/* persistent-google-session-v1 */
+(() => {
+  const TOKEN_KEY = 'sync.googleAccess';
+  const REFRESH_EARLY_MS = 5 * 60 * 1000;
+  const DEFAULT_TTL_MS = 55 * 60 * 1000;
+  let renewTimer = null;
+  let refreshPromise = null;
+  let refreshResolve = null;
+  let refreshReject = null;
+
+  function readStoredAccess() {
+    try {
+      return JSON.parse(localStorage.getItem(TOKEN_KEY) || 'null');
+    } catch {
+      return null;
+    }
+  }
+
+  function saveAccess(token, expiresInSeconds) {
+    if (!token) return;
+    const ttl = Math.max(60, Number(expiresInSeconds || 0)) * 1000 || DEFAULT_TTL_MS;
+    const value = {token, expiresAt: Date.now() + ttl};
+    localStorage.setItem(TOKEN_KEY, JSON.stringify(value));
+    sessionStorage.setItem('sync.googleToken', token);
+    state.googleToken = token;
+    scheduleRenew(value.expiresAt);
+  }
+
+  function clearAccess() {
+    localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem('sync.googleToken');
+    state.googleToken = '';
+    if (renewTimer) clearTimeout(renewTimer);
+    renewTimer = null;
+  }
+
+  function storedTokenIsUsable(record) {
+    return Boolean(record?.token && Number(record.expiresAt || 0) > Date.now() + 30_000);
+  }
+
+  function restorePersistedAccess() {
+    const record = readStoredAccess();
+    if (!storedTokenIsUsable(record)) {
+      if (record) localStorage.removeItem(TOKEN_KEY);
+      return false;
+    }
+    state.googleToken = record.token;
+    sessionStorage.setItem('sync.googleToken', record.token);
+    scheduleRenew(Number(record.expiresAt));
+    return true;
+  }
+
+  function scheduleRenew(expiresAt) {
+    if (renewTimer) clearTimeout(renewTimer);
+    const wait = Math.max(15_000, Number(expiresAt || 0) - Date.now() - REFRESH_EARLY_MS);
+    renewTimer = setTimeout(() => {
+      renewGoogleAccess(false).catch((error) => {
+        console.debug('Background Google token renewal skipped:', error);
+      });
+    }, wait);
+  }
+
+  function buildGoogleClient() {
+    if (!state.config.googleClientId || !window.google?.accounts?.oauth2) return null;
+    state.googleClient = google.accounts.oauth2.initTokenClient({
+      client_id: state.config.googleClientId,
+      scope: [
+        'https://www.googleapis.com/auth/youtube.force-ssl',
+        'https://www.googleapis.com/auth/userinfo.profile',
+        'https://www.googleapis.com/auth/userinfo.email'
+      ].join(' '),
+      include_granted_scopes: true,
+      callback: async (response) => {
+        state.googleConnecting = false;
+        if (response?.error || !response?.access_token) {
+          const error = new Error(response?.error_description || response?.error || 'Google не вернул токен доступа');
+          if (refreshReject) refreshReject(error);
+          refreshPromise = refreshResolve = refreshReject = null;
+          return;
+        }
+
+        saveAccess(response.access_token, response.expires_in || 3600);
+        if (refreshResolve) refreshResolve(response.access_token);
+        refreshPromise = refreshResolve = refreshReject = null;
+
+        try {
+          await restoreGoogle(false);
+        } catch (error) {
+          console.debug('Google restore after token renewal failed:', error);
+        }
+      },
+      error_callback: (error) => {
+        state.googleConnecting = false;
+        const oauthError = new Error(error?.type || 'Google OAuth failed');
+        if (refreshReject) refreshReject(oauthError);
+        refreshPromise = refreshResolve = refreshReject = null;
+      }
+    });
+    return state.googleClient;
+  }
+
+  function installClientOverride() {
+    initGoogleClient = function initPersistentGoogleClient() {
+      if (state.googleClient) return state.googleClient;
+      return buildGoogleClient();
+    };
+  }
+
+  function renewGoogleAccess(interactive = false) {
+    const record = readStoredAccess();
+    if (!interactive && storedTokenIsUsable(record) && Number(record.expiresAt) > Date.now() + REFRESH_EARLY_MS) {
+      return Promise.resolve(record.token);
+    }
+    if (refreshPromise) return refreshPromise;
+
+    let client = initGoogleClient();
+    if (!client) {
+      return Promise.reject(new Error('Google OAuth ещё не загрузился'));
+    }
+
+    refreshPromise = new Promise((resolve, reject) => {
+      refreshResolve = resolve;
+      refreshReject = reject;
+    });
+    state.googleConnecting = true;
+
+    try {
+      client.requestAccessToken({prompt: interactive ? 'consent' : ''});
+    } catch (error) {
+      state.googleConnecting = false;
+      refreshReject?.(error);
+      refreshPromise = refreshResolve = refreshReject = null;
+    }
+    return refreshPromise;
+  }
+
+  function markNeedsRenewal() {
+    clearAccess();
+    if (state.googleProfile) {
+      applyGoogleProfile(state.googleProfile, true);
+      if (els.youtubeAccountMeta) els.youtubeAccountMeta.textContent = 'Нужно обновить доступ';
+    }
+  }
+
+  const originalConnectGoogle = connectGoogle;
+  connectGoogle = async function connectGooglePersistent() {
+    if (state.googleConnecting) return;
+    try {
+      await renewGoogleAccess(!state.googleProfile);
+      toast('YouTube-аккаунт подключён');
+    } catch (error) {
+      console.error('Google reconnect failed:', error);
+      return originalConnectGoogle();
+    }
+  };
+
+  const originalDisconnectGoogle = disconnectGoogle;
+  disconnectGoogle = async function disconnectGooglePersistent(clearServer = true) {
+    if (clearServer) {
+      clearAccess();
+      return originalDisconnectGoogle(true);
+    }
+
+    markNeedsRenewal();
+    try {
+      await renewGoogleAccess(false);
+    } catch (error) {
+      console.debug('Silent Google renewal unavailable:', error);
+      if (state.googleProfile) {
+        applyGoogleProfile(state.googleProfile, true);
+        if (els.youtubeAccountMeta) els.youtubeAccountMeta.textContent = 'Нажми «Обновить», чтобы продлить доступ';
+      }
+    }
+  };
+
+  const originalLoadLibrary = loadLibrary;
+  loadLibrary = async function loadLibraryWithRenewal() {
+    if (!state.googleToken && state.googleProfile) {
+      try {
+        await renewGoogleAccess(false);
+      } catch {
+        if (els.youtubeAccountMeta) els.youtubeAccountMeta.textContent = 'Нажми «Обновить», чтобы продлить доступ';
+        return;
+      }
+    }
+    return originalLoadLibrary();
+  };
+
+  restorePersistedAccess();
+
+  // player_extras.js is loaded after this file and replaces initGoogleClient.
+  // Install our final client on the next task so it wins and also covers likes.
+  setTimeout(() => {
+    state.googleClient = null;
+    installClientOverride();
+    const record = readStoredAccess();
+    if (storedTokenIsUsable(record)) scheduleRenew(Number(record.expiresAt));
+  }, 0);
 })();

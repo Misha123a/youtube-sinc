@@ -1,6 +1,7 @@
 """Personalized queue builder based on YouTube Music radio and listening history."""
 from __future__ import annotations
 
+import asyncio
 from collections import Counter
 import random
 import re
@@ -161,12 +162,59 @@ def install_room_queue_upgrade() -> None:
         return
 
     manager = ws_manager.manager
-    if getattr(manager, "_infinite_queue_v2", False):
+    if getattr(manager, "_infinite_queue_v3", False):
         return
 
     original_broadcast_queue = manager.broadcast_queue
+    original_queue_snapshot = manager.queue_snapshot
+    original_clear_upcoming = manager.clear_upcoming
+    original_remove_queue_item = manager.remove_queue_item
+    original_add_queue_item = manager.add_queue_item
     target_upcoming = 30
     refill_at = 15
+
+    def auto_enabled(room: Any) -> bool:
+        return bool(getattr(room, "auto_queue_enabled", True))
+
+    def queue_snapshot(room_code: str) -> dict[str, Any]:
+        snapshot = original_queue_snapshot(room_code)
+        room = manager.rooms.get(room_code)
+        snapshot["autoQueueEnabled"] = auto_enabled(room) if room else True
+        return snapshot
+
+    def clear_upcoming(room_code: str) -> None:
+        room = manager.rooms.get(room_code)
+        if room:
+            # The clear button must visibly stay cleared. Skip exactly the broadcast
+            # that follows this action; later playback can refill again if Auto Queue is on.
+            room._skip_refill_once = True
+        original_clear_upcoming(room_code)
+
+    def remove_queue_item(room_code: str, item_id: str) -> dict[str, Any] | None:
+        room = manager.rooms.get(room_code)
+        if room and item_id in {"__AUTO_QUEUE_ON__", "__AUTO_QUEUE_OFF__"}:
+            room.auto_queue_enabled = item_id == "__AUTO_QUEUE_ON__"
+            room._skip_refill_once = True
+            room.queue_revision += 1
+            return None
+        return original_remove_queue_item(room_code, item_id)
+
+    def add_queue_item(
+        room_code: str,
+        song: dict[str, Any],
+        added_by: str,
+    ) -> tuple[dict[str, Any], bool]:
+        room = manager.rooms.get(room_code)
+        is_auto = str(song.get("source") or "") == "smart_radio" or added_by == "Умная очередь"
+        if room and is_auto and not auto_enabled(room):
+            current = manager.current_queue_item(room_code)
+            return current or {"id": "", "videoId": str(song.get("videoId") or "")}, True
+        return original_add_queue_item(room_code, song, added_by)
+
+    manager.queue_snapshot = queue_snapshot
+    manager.clear_upcoming = clear_upcoming
+    manager.remove_queue_item = remove_queue_item
+    manager.add_queue_item = add_queue_item
 
     def upcoming_count(room: Any) -> int:
         if not room.queue:
@@ -186,10 +234,10 @@ def install_room_queue_upgrade() -> None:
         room.radio_history = history[:100]
         return room.radio_history
 
-    def fill_room(room_code: str) -> None:
+    def fill_room(room_code: str) -> bool:
         room = manager.rooms.get(room_code)
-        if not room or not room.queue or upcoming_count(room) >= refill_at:
-            return
+        if not room or not auto_enabled(room) or not room.queue or upcoming_count(room) >= refill_at:
+            return False
 
         current = manager.current_queue_item(room_code) or room.queue[-1]
         history = remember_current(room)
@@ -200,7 +248,7 @@ def install_room_queue_upgrade() -> None:
         }
         needed = max(0, target_upcoming - upcoming_count(room))
         if not needed:
-            return
+            return False
 
         candidates = build_smart_radio(
             current=current,
@@ -228,7 +276,10 @@ def install_room_queue_upgrade() -> None:
                     continue
 
         seen_titles = {_title_key(item) for item in room.queue if _title_key(item)}
+        added = False
         for candidate in candidates:
+            if not auto_enabled(room):
+                break
             video_id = _text(candidate.get("videoId"))
             title_key = _title_key(candidate)
             if not video_id or video_id in excluded or not title_key or title_key in seen_titles:
@@ -241,20 +292,53 @@ def install_room_queue_upgrade() -> None:
                 "Умная очередь",
             )
             if not duplicate:
+                added = True
                 excluded.add(video_id)
                 seen_titles.add(title_key)
             if upcoming_count(room) >= target_upcoming:
                 break
+        return added
 
-    async def broadcast_queue_with_refill(room_code: str, **extra: Any) -> None:
+    async def refill_in_background(room_code: str) -> None:
+        room = manager.rooms.get(room_code)
+        if not room or getattr(room, "_refill_running", False):
+            return
+        room._refill_running = True
         try:
-            fill_room(room_code)
+            added = await asyncio.to_thread(fill_room, room_code)
+            if added and room_code in manager.rooms:
+                await original_broadcast_queue(room_code)
         except Exception as exc:
             print(f"Room queue refill failed for {room_code}: {exc}")
+        finally:
+            room = manager.rooms.get(room_code)
+            if room:
+                room._refill_running = False
+
+    async def broadcast_queue_with_refill(room_code: str, **extra: Any) -> None:
+        room = manager.rooms.get(room_code)
+        skip_refill = bool(room and getattr(room, "_skip_refill_once", False))
+        if room and skip_refill:
+            room._skip_refill_once = False
+
+        # Send the authoritative queue immediately. Recommendation lookups must never
+        # block a click on a track or a queue update for several seconds.
         await original_broadcast_queue(room_code, **extra)
+
+        room = manager.rooms.get(room_code)
+        if (
+            room
+            and not skip_refill
+            and auto_enabled(room)
+            and room.queue
+            and upcoming_count(room) < refill_at
+            and not getattr(room, "_refill_running", False)
+        ):
+            asyncio.create_task(refill_in_background(room_code))
 
     manager.broadcast_queue = broadcast_queue_with_refill
     manager._infinite_queue_v2 = True
+    manager._infinite_queue_v3 = True
 
 
 install_room_queue_upgrade()

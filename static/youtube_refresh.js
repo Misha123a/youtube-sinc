@@ -394,12 +394,27 @@
 
   restorePersistedAccess();
 
-  // player_extras.js is loaded after this file and replaces initGoogleClient.
-  // Install our final client on the next task so it wins and also covers likes.
   setTimeout(() => {
     state.googleClient = null;
     installClientOverride();
     const record = readStoredAccess();
     if (storedTokenIsUsable(record)) scheduleRenew(Number(record.expiresAt));
   }, 0);
+})();
+
+/* my-wave-direct-loader-v1 */
+(() => {
+  if (window.__syncWaveLoaderInstalled) return;
+  window.__syncWaveLoaderInstalled = true;
+  const load = () => {
+    if (document.getElementById('myWaveCard') || document.querySelector('script[data-sync-wave-loader]')) return;
+    const script = document.createElement('script');
+    script.src = `/static/wave.js?v=${Date.now()}`;
+    script.defer = true;
+    script.dataset.syncWaveLoader = '1';
+    script.onerror = () => console.error('Не удалось загрузить /static/wave.js');
+    document.head.appendChild(script);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', load, {once:true});
+  else load();
 })();

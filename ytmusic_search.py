@@ -5,6 +5,7 @@ from functools import lru_cache
 import random
 from typing import Any
 
+import wave_bootstrap  # noqa: F401 - import-time frontend bootstrap
 from ytmusicapi import YTMusic
 
 _yt = YTMusic()

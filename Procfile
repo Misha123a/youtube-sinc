@@ -1,1 +1,1 @@
-web: uvicorn startup:app --host 0.0.0.0 --port $PORT
+web: uvicorn wave_startup:app --host 0.0.0.0 --port $PORT
